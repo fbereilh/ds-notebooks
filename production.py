@@ -5,26 +5,40 @@
 # file to edit: dev_nb/01_production_example.ipynb
 
 from pycaret.classification import *
-from flask import Flask
-import dill
+from imports import *
 from brds import *
+from flask import Flask
+from flask import send_file, send_from_directory, safe_join, abort
+
 
 
 # load pipeline
 model = load_model('model/model_v1')
 
-
-# with open("model/preprocess_v1.pkl", "rb") as dill_file:
-#     preprocess = dill.load(dill_file)
-
 app = Flask(__name__)
+
+
+@app.route('/')
+def hello():
+    return "Hello add a file_id to the path to get preds"
+
 
 @app.route('/<file_id>')
 def my_view_func(file_id):
     print("got one request")
-    get_data(file_id)
+    users_raw, purchases_raw = get_data(file_id)
+    data = final_preprocess_pipeline.fit_transform((users_raw, purchases_raw))
+    #data.to_csv('data.csv')
+    predictions = predict_model(model, data=data)
+    predictions.to_csv('predictions.csv')
+
+    try:
+        return send_file('predictions.csv',
+                     mimetype='text/csv',
+                     attachment_filename='predictions.csv',
+                     as_attachment=True)
+    except FileNotFoundError:
+        abort(404)
+# predict_model(model, data=data)
 
 
-# @app.route("/")
-# def hello_world():
-#     return "<p>Hello, World!</p>"
