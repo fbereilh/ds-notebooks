@@ -4,8 +4,6 @@
 #################################################
 # file to edit: dev_nb/01_production_example.ipynb
 
-from pycaret.classification import *
-from imports import *
 from brds import *
 from flask import Flask
 from flask import send_file, send_from_directory, safe_join, abort

@@ -4,7 +4,63 @@
 #################################################
 # file to edit: dev_nb/00_brds.ipynb
 
-from imports import *
+#installs
+# %pip install pycaret --quiet
+# %pip install lifetimes --quiet
+# %pip install gdown --quiet
+# %pip install zipfile --quiet
+# %pip install pyyaml==5.4.1
+# !conda install scikit-learn=0.23.2 -y
+#%pip freeze -> requirements.txt
+
+
+# imports
+from datetime import timedelta
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+sns.set_theme(style="darkgrid")
+sns.set_context("notebook")
+
+import plotly.graph_objects as go
+import plotly.express as px
+from plotly.subplots import make_subplots
+
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.base import BaseEstimator,TransformerMixin
+from sklearn.cluster import KMeans
+from sklearn import model_selection
+
+from imblearn.over_sampling import SMOTE
+from imblearn.under_sampling import RandomUnderSampler
+
+
+from lifetimes import BetaGeoFitter, GammaGammaFitter
+from lifetimes.utils import \
+    calibration_and_holdout_data, \
+    summary_data_from_transaction_data, \
+    calculate_alive_path
+
+
+from lifetimes.plotting import \
+    plot_frequency_recency_matrix, \
+    plot_probability_alive_matrix, \
+    plot_period_transactions, \
+    plot_history_alive, \
+    plot_cumulative_transactions, \
+    plot_calibration_purchases_vs_holdout_purchases, \
+    plot_transaction_rate_heterogeneity, \
+    plot_dropout_rate_heterogeneity
+
+
+
+#set up
+pd.options.display.float_format = '{:,.2f}'.format
 
 
 #package all into a function
@@ -23,7 +79,7 @@ def get_data(file_id):
 
     return  users_raw, purchases_raw
 
-class DataframeFunctionTransformer():
+class DataframeFunctionTransformer(BaseEstimator,TransformerMixin):
     """Creates a pandas Dataframe transformer from a function"""
     def __init__(self, func, **func_params):
         self.func = func
@@ -77,8 +133,8 @@ class FramesLeftMerger(BaseEstimator,TransformerMixin):
 
     def transform(self,X,y=None):
         df1, df2 = X[0], X[1]
-        df1 = self.pipe1.transform(df1.copy())
-        df2 = self.pipe2.transform(df2.copy())
+        df1 = self.pipe1.fit_transform(df1.copy())
+        df2 = self.pipe2.fit_transform(df2.copy())
         merge = df1.merge(df2, how='left', on='user_id')
         merge[df2.columns] = merge[df2.columns].fillna(0)
         return merge
@@ -101,9 +157,12 @@ preprocess_users = Pipeline(
     steps=[
         ("select_cols", DataframeFunctionTransformer(select_columns_ , cols=select_cols)),
         ("timify", DataframeFunctionTransformer(timify_ , cols=['created_at'])),
-        ("categorify",DataframeFunctionTransformer(categorify_ , cols=users_cat_features))
+        ("categorify", DataframeFunctionTransformer(categorify_ , cols=users_cat_features)),
+
     ]
 )
+
+
 
 full_preprocess = FramesLeftMerger(preprocess_users, preprocess_purchases)
 
@@ -148,7 +207,7 @@ class GammaGammaFitterTransformer(BaseEstimator,TransformerMixin):
 
 
 
-def group_rare_categories(df, limit= 30, cols=None):
+def group_rare_categories(df, limit= 35, cols=None):
     df_c = df.copy()
     for c in cols:
         n = min(df_c[c].nunique() - 2, limit)
@@ -165,6 +224,8 @@ extra_features_pipe = Pipeline(
             ("gammagamma", GammaGammaFitterTransformer()),
            ]
 )
+
+from pycaret.regression import *
 
 final_preprocess_pipeline = Pipeline(steps=[
     ('full_preprocess', full_preprocess),
